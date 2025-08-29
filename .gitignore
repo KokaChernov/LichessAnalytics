@@ -5,19 +5,28 @@
 *.sln.docstates
 
 # Build results
-**[Dd]ebug/
-**[Dd]ebugPublic/
-**[Rr]elease/
-**[Rr]eleases/
-**x64/
-**x86/
-**[Aa][Rr][Mm]/
-**[Aa][Rr][Mm]64/
-**bld/
-**[Bb]in/
-**[Oo]bj/
-**[Ll]og/
-**[Ll]ogs/
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# .NET specific
+**/bin/
+**/obj/
+**/Debug/
+**/Release/
+*.dll
+*.exe
+*.pdb
 
 # Visual Studio cache/options directory
 .vs/
@@ -105,3 +114,7 @@ orleans.codegen.cs
 
 # Local History for Visual Studio
 .localhistory/
+LichessAnalytics.Tests/obj/Debug/net9.0/
+LichessAnalytics.Tests/bin/Debug/net9.0/
+LichessAnalytics.Console/bin/Debug/net9.0/
+LichessAnalytics.Console/obj/Debug/net9.0/
