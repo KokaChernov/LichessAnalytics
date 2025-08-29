@@ -114,7 +114,4 @@ orleans.codegen.cs
 
 # Local History for Visual Studio
 .localhistory/
-LichessAnalytics.Tests/obj/Debug/net9.0/
-LichessAnalytics.Tests/bin/Debug/net9.0/
-LichessAnalytics.Console/bin/Debug/net9.0/
-LichessAnalytics.Console/obj/Debug/net9.0/
+**net9.0/

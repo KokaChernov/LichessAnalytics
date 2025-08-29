@@ -94,7 +94,12 @@ class Program
 
         using (var client = new HttpClient())
         {
-            client.DefaultRequestHeaders.Add("Authorization", "Bearer lip_fPZmKH7SGgEFxsjfFNd6");
+            var token = Environment.GetEnvironmentVariable("LICHESS_API_TOKEN");
+            if (string.IsNullOrEmpty(token))
+            {
+                throw new InvalidOperationException("LICHESS_API_TOKEN environment variable is not set");
+            }
+            client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
 
             var url = $"https://lichess.org/api/games/user/kokachernov?max={numberOfGamesToFetch}&until={millisecondsSinceEpoch}&perfType=bullet";
             var response = await client.GetAsync(url);
