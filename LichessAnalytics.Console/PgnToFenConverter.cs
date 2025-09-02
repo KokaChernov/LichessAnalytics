@@ -50,6 +50,9 @@ public class PgnToFenConverter
 
     private static void ApplyMove(char[,] board, string move, ref bool whiteToMove, ref string castlingRights, ref string enPassant, ref int halfmoveClock, ref int fullmoveNumber)
     {
+        string previousEnPassant = enPassant;
+        enPassant = "-"; // Reset en passant at the start of each move
+
         // Handle castling
         if (move == "O-O" || move == "O-O+")
         {
@@ -152,7 +155,7 @@ public class PgnToFenConverter
                 if (board[r, c] == piece &&
                     (fromFile == null || c == fromFile) &&
                     (fromRank == null || r == fromRank) &&
-                    CanMoveTo(board, r, c, targetRank, targetFile, whiteToMove, string.IsNullOrEmpty(enPassant) ? "-" : enPassant))
+                    CanMoveTo(board, r, c, targetRank, targetFile, whiteToMove, previousEnPassant))
                 {
                     srcRank = r;
                     srcFile = c;
@@ -170,13 +173,12 @@ public class PgnToFenConverter
             enPassant = $"{(char)('a' + targetFile)}{8 - epRank}";
         }
 
-        if (char.ToUpper(piece) == 'P' && targetFile != srcFile && board[targetRank, targetFile] == '.' && enPassant != "-")
+        if (char.ToUpper(piece) == 'P' && targetFile != srcFile && board[targetRank, targetFile] == '.' && previousEnPassant != "-")
         {
             //isEnPassantCapture = true;
             // Remove the captured pawn
             int capturedPawnRank = whiteToMove ? targetRank + 1 : targetRank - 1;
             board[capturedPawnRank, targetFile] = '.';
-            enPassant = "-";
         }
 
         // Move piece (including promotion)
@@ -216,8 +218,45 @@ public class PgnToFenConverter
         return true;
     }
 
+    private static bool IsKingInCheck(char[,] board, bool whiteKing)
+    {
+        // Find king position
+        int kingRank = -1, kingFile = -1;
+        char kingChar = whiteKing ? 'K' : 'k';
+        
+        for (int r = 0; r < 8; r++)
+        {
+            for (int c = 0; c < 8; c++)
+            {
+                if (board[r, c] == kingChar)
+                {
+                    kingRank = r;
+                    kingFile = c;
+                    break;
+                }
+            }
+            if (kingRank != -1) break;
+        }
+
+        // Check if any enemy piece can capture the king
+        for (int r = 0; r < 8; r++)
+        {
+            for (int c = 0; c < 8; c++)
+            {
+                char piece = board[r, c];
+                if (piece != '.' && char.IsUpper(piece) != whiteKing) // enemy piece
+                {
+                    if (CanMoveTo(board, r, c, kingRank, kingFile, !whiteKing, "-", true))
+                        return true;
+                }
+            }
+        }
+        return false;
+    }
+
     // NEW signature: includes enPassant algebraic (e.g. "e6") so pawn can capture en-passant
-    private static bool CanMoveTo(char[,] board, int sr, int sf, int tr, int tf, bool whiteToMove, string enPassant)
+    // Added allowKingCapture parameter to prevent infinite recursion when checking for king safety
+    private static bool CanMoveTo(char[,] board, int sr, int sf, int tr, int tf, bool whiteToMove, string enPassant, bool allowKingCapture = false)
     {
         if (sr == tr && sf == tf) return false; // same square
         char moving = board[sr, sf];
@@ -237,53 +276,87 @@ public class PgnToFenConverter
         int adc = Math.Abs(dc);
         char up = char.ToUpper(moving);
 
+        bool canMove = false;
         switch (up)
         {
             case 'P':
                 int dir = whiteToMove ? -1 : 1; // rows decrease for white moves
-                                                // single forward
-                if (dc == 0 && dr == dir && targetEmpty) return true;
+                // single forward
+                if (dc == 0 && dr == dir && targetEmpty) canMove = true;
                 // double forward from start rank (white row 6, black row 1)
-                if (dc == 0 && dr == 2 * dir && targetEmpty)
+                else if (dc == 0 && dr == 2 * dir && targetEmpty)
                 {
                     int betweenRank = sr + dir;
                     if (board[betweenRank, sf] == '.' &&
                         ((whiteToMove && sr == 6) || (!whiteToMove && sr == 1)))
-                        return true;
+                        canMove = true;
                 }
                 // capture diagonal (normal)
-                if (adc == 1 && dr == dir && !targetEmpty) return true;
+                else if (adc == 1 && dr == dir && !targetEmpty) canMove = true;
                 // en-passant capture: target square empty but equals enPassant square
-                if (adc == 1 && dr == dir && targetEmpty && enPassant != "-")
+                else if (adc == 1 && dr == dir && targetEmpty && enPassant != "-")
                 {
                     int epFile = enPassant[0] - 'a';
                     int epRank = 8 - (enPassant[1] - '0');
-                    if (epFile == tf && epRank == tr) return true;
+                    if (epFile == tf && epRank == tr) canMove = true;
                 }
-                return false;
+                break;
 
             case 'N':
-                return (adr == 1 && adc == 2) || (adr == 2 && adc == 1);
+                canMove = (adr == 1 && adc == 2) || (adr == 2 && adc == 1);
+                break;
 
             case 'B':
-                if (adr == adc) return IsPathClear(board, sr, sf, tr, tf);
-                return false;
+                if (adr == adc) canMove = IsPathClear(board, sr, sf, tr, tf);
+                break;
 
             case 'R':
-                if (adr == 0 || adc == 0) return IsPathClear(board, sr, sf, tr, tf);
-                return false;
+                if (adr == 0 || adc == 0) canMove = IsPathClear(board, sr, sf, tr, tf);
+                break;
 
             case 'Q':
-                if (adr == adc || adr == 0 || adc == 0) return IsPathClear(board, sr, sf, tr, tf);
-                return false;
+                if (adr == adc || adr == 0 || adc == 0) canMove = IsPathClear(board, sr, sf, tr, tf);
+                break;
 
             case 'K':
                 // normal king move (castling handled separately in ApplyMove)
-                return Math.Max(adr, adc) == 1;
-
-            default:
-                return false;
+                canMove = Math.Max(adr, adc) == 1;
+                break;
         }
+
+        if (!canMove || allowKingCapture) return canMove;
+
+        // Make the move temporarily to check if it leaves own king in check
+        char originalTarget = board[tr, tf];
+        board[tr, tf] = board[sr, sf];
+        board[sr, sf] = '.';
+
+        // Special handling for en passant capture
+        int? epCaptureRank = null;
+        char? epCapturePiece = null;
+        if (up == 'P' && adc == 1 && dr == (whiteToMove ? -1 : 1) && targetEmpty && enPassant != "-")
+        {
+            int epFile = enPassant[0] - 'a';
+            int epRank = 8 - (enPassant[1] - '0');
+            if (epFile == tf && epRank == tr)
+            {
+                epCaptureRank = whiteToMove ? tr + 1 : tr - 1;
+                epCapturePiece = board[epCaptureRank.Value, tf];
+                board[epCaptureRank.Value, tf] = '.';
+            }
+        }
+
+        bool kingInCheck = IsKingInCheck(board, whiteToMove);
+
+        // Restore the board
+        board[sr, sf] = board[tr, tf];
+        board[tr, tf] = originalTarget;
+        if (epCaptureRank.HasValue)
+        {
+            board[epCaptureRank.Value, tf] = epCapturePiece.Value;
+        }
+
+        return !kingInCheck;
     }
 
     private static string BoardToFEN(char[,] board, bool whiteToMove, string castlingRights, string enPassant, int halfmoveClock, int fullmoveNumber)

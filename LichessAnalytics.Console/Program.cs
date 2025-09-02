@@ -9,11 +9,13 @@ using System.Linq;
 class Program
 {
     
-    readonly static int numberOfGamesPerIteration = 1;
-    readonly static int numberOfIterantions = 1000;
+    readonly static int numberOfGamesPerIteration = 1000;
+    readonly static int numberOfIterantions = 5;
 
-    // we consider only unique positions after the first 10 moves of each game so as to skip the opening theory
+    // we consider only unique positions after the first N moves of each game so as to skip the opening theory
     readonly static int numberOfMovesToSkip = 10;
+    
+    readonly static int numberOfTopPositionsToPresent = 10;
     static void Main()
     {
 
@@ -22,12 +24,10 @@ class Program
         var millisecondsSinceEpoch = new DateTimeOffset(DateTime.UtcNow, TimeSpan.Zero).ToUnixTimeMilliseconds();
         for (int i = 0; i < numberOfIterantions; i++)
         {
-
-            // Write me a rest api call to curl -H "Authorization: Bearer lip_fPZmKH7SGgEFxsjfFNd6" "https://lichess.org/api/games/user/kokachernov?max=10"
             var lichessGames = GetLichessGamesAsync(millisecondsSinceEpoch, numberOfGamesPerIteration).GetAwaiter().GetResult();
-            // how to parse date and time from lichess games
+
             Console.WriteLine("=== New batch of games ===");
-            Console.WriteLine(lichessGames);
+            //Console.WriteLine(lichessGames);
 
             string pattern = @"\[UTCDate\s+""(?<date>[\d\.]+)""\]\s+\[UTCTime\s+""(?<time>[\d:]+)""\]";
             var datetimematches = Regex.Matches(lichessGames, pattern);
@@ -40,7 +40,6 @@ class Program
                 Console.WriteLine($"Date: {dateStr}");
                 Console.WriteLine($"Time: {timeStr}");
 
-                // If you want to parse into DateTime:
                 if (DateTime.TryParseExact(
                         dateStr + " " + timeStr,
                         "yyyy.MM.dd HH:mm:ss",
@@ -67,12 +66,10 @@ class Program
 
             foreach (var game in lichessGames.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries))
             {
-                //Console.WriteLine(game.Trim());
-
                 // filter out only the positions after the first 10 moves of each game
-                var fens = PgnToFenConverter.ConvertPgnToFen(game).Skip(numberOfMovesToSkip*2);
+                var fens = PgnToFenConverter.ConvertPgnToFen(game).Skip(numberOfMovesToSkip);
 
-                foreach (var fen in fens.Skip(numberOfMovesToSkip * 2))
+                foreach (var fen in fens)
                 {
                     string boardPosition = fen.Split(' ')[0];// leave only the board position out of the FEN (e.g. "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
                     //Console.WriteLine(boardPosition);
@@ -80,9 +77,11 @@ class Program
                 }
             }
         }
-        var sorted = frequentPositions.ToList();
-        sorted.Sort((a, b) => b.Value.CompareTo(a.Value)); // sort by descending frequency
-        foreach (var position in sorted.Take(10))
+        Console.WriteLine($"overall {frequentPositions.Count} unique positions found");
+        
+        var sorted = frequentPositions.ToList().OrderByDescending(kv => kv.Value);
+        
+        foreach (var position in sorted.Take(numberOfTopPositionsToPresent))
         {
             Console.WriteLine($"{position.Key} : {position.Value}");
         }
