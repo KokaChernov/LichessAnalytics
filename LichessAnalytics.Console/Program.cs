@@ -10,7 +10,7 @@ class Program
 {
     
     readonly static int numberOfGamesPerIteration = 1000;
-    readonly static int numberOfIterantions = 5;
+    readonly static int numberOfIterantions = 15;
 
     // we consider only unique positions after the first N moves of each game so as to skip the opening theory
     readonly static int numberOfMovesToSkip = 10;
@@ -66,8 +66,8 @@ class Program
 
             foreach (var game in lichessGames.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries))
             {
-                // filter out only the positions after the first 10 moves of each game
-                var fens = PgnToFenConverter.ConvertPgnToFen(game).Skip(numberOfMovesToSkip);
+                // filter out only the positions after the first 10 full moves of each game
+                var fens = PgnToFenConverter.ConvertPgnToFen(game).Skip(2*numberOfMovesToSkip);
 
                 foreach (var fen in fens)
                 {
