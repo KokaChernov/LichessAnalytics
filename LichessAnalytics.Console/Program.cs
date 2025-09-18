@@ -9,7 +9,7 @@ using System.Linq;
 class Program
 {
     
-    readonly static int numberOfGamesPerIteration = 1000;
+    readonly static int numberOfGamesPerIteration = 10;
     readonly static int numberOfIterantions = 15;
 
     // we consider only unique positions after the first N moves of each game so as to skip the opening theory
@@ -22,13 +22,14 @@ class Program
         Dictionary<string, int> frequentPositions = new Dictionary<string, int>();
 
         var millisecondsSinceEpoch = new DateTimeOffset(DateTime.UtcNow, TimeSpan.Zero).ToUnixTimeMilliseconds();
+        
         for (int i = 0; i < numberOfIterantions; i++)
         {
             var lichessGames = GetLichessGamesAsync(millisecondsSinceEpoch, numberOfGamesPerIteration).GetAwaiter().GetResult();
 
             Console.WriteLine("=== New batch of games ===");
-            //Console.WriteLine(lichessGames);
-
+            Console.WriteLine(lichessGames);
+            // Record the last game's date and time to use it as the 'until' parameter in the next API call
             string pattern = @"\[UTCDate\s+""(?<date>[\d\.]+)""\]\s+\[UTCTime\s+""(?<time>[\d:]+)""\]";
             var datetimematches = Regex.Matches(lichessGames, pattern);
             if (datetimematches.Count > 0)
@@ -56,6 +57,8 @@ class Program
                 millisecondsSinceEpoch = new DateTimeOffset(dt, TimeSpan.Zero).ToUnixTimeMilliseconds();
             }
 
+
+
             string patternToRemoveMetadata = @"^.*[\[\]\(\)\{\}].*$(\r?\n)?";
             lichessGames = Regex.Replace(lichessGames, patternToRemoveMetadata, string.Empty, RegexOptions.Multiline);
 
@@ -67,7 +70,7 @@ class Program
             foreach (var game in lichessGames.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries))
             {
                 // filter out only the positions after the first 10 full moves of each game
-                var fens = PgnToFenConverter.ConvertPgnToFen(game).Skip(2*numberOfMovesToSkip);
+                var fens = PgnToFenConverter.ConvertPgnToFen(game).Skip(2 * numberOfMovesToSkip);
 
                 foreach (var fen in fens)
                 {

@@ -2,8 +2,6 @@
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LichessAnalytics", "LichessAnalytics\LichessAnalytics.csproj", "{15F75865-403E-4471-8DFE-C361E88DF190}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LichessAnalytics.Console", "LichessAnalytics.Console\LichessAnalytics.Console.csproj", "{B1A2C3D4-5678-4321-ABCD-1234567890AB}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LichessAnalytics.Tests", "LichessAnalytics.Tests\LichessAnalytics.Tests.csproj", "{D2E3F4A5-6789-4321-BCDE-2345678901CD}"
