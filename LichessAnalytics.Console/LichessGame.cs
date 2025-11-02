@@ -29,7 +29,7 @@ namespace LichessAnalytics.Console
         public string PGN { get; set; }
 
         private static readonly Regex TagPattern = new Regex(@"\[(\w+)\s+""(.+?)""\]");
-        private static readonly Regex PGNPattern = new Regex(@"1\..+");
+        private static readonly Regex PGNPattern = new Regex(@"\n1\..+");
 
         public static LichessGame Parse(string lichessGameString)
         {
@@ -68,7 +68,7 @@ namespace LichessAnalytics.Console
 
             if (pgnMatch.Success)
             {
-                game.PGN = pgnMatch.Value;
+                game.PGN = pgnMatch.Value[1..];// skip the leading newline
                 return game;
             }
             

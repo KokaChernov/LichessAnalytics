@@ -6,6 +6,9 @@ public class PgnToFenConverter
 {
     public static List<string> ConvertPgnToFen(string pgn)
     {
+        string patternFinalResult = @"\s*(1-0|0-1|1/2-1/2|\*)";
+        pgn = Regex.Replace(pgn, patternFinalResult, string.Empty, RegexOptions.Multiline);
+
         var moves = Regex.Replace(pgn, @"\d+\.", "") // remove move numbers
                          .Trim()
                          .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
