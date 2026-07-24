@@ -18,7 +18,7 @@ class Program
     
     readonly static int numberOfTopPositionsToPresent = 20;
     
-    readonly static string playerName = "kokachernov";
+    readonly static string playerName = "sometimesok";
 
     static void Main()
     {
@@ -92,7 +92,7 @@ class Program
 
                 foreach (var fen in fens)
                 {
-                    string boardPosition = fen.Split(' ')[0];// leave only the board position out of the FEN (e.g. "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" - take only the piece placement part)
+                    string boardPosition = string.Join(" ", fen.Split(' ')[0..2]);// leave only the board position out of the FEN (e.g. "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" - take only the piece placement part + next move color)
                     //Console.WriteLine(boardPosition);
                     frequentPositions[boardPosition] = frequentPositions.GetValueOrDefault(boardPosition, 0) + 1;
                     if (!postitionsToGameReference.ContainsKey(boardPosition))

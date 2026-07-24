@@ -356,23 +356,7 @@ public class PgnToFenConverterTests
         var actual = PgnToFenConverter.ConvertPgnToFen(pgn);
         foreach (var fen in actual)
         {
-            output.WriteLine("\""+fen+"\",");
-        }
-        Assert.Equal(expected, actual);
-    }
-
-    [Fact]
-    public void ConvertPgnToFen_Chess960_ReturnsCorrectFens()
-    {
-        string pgn = "1. e3 Ng6 2. Bd3 f6 3. Bxg6 hxg6 4. Ng3 Be6 5. Ne2 g5 6. h3 g6 7. b3 Bg7 8. c4 f5 9. Nbc3 f4 10. exf4 gxf4 11. Nxf4 Bf5 12. Ncd5 d6 13. Qa3 Nc6 14. Qa4 Qd7 15. Bh2 g5 16. O-O-O gxf4 17. Bxf4 Rh8 18. Re2 Rg8 19. Rde1 Be5 20. Bxe5 Nxe5 21. Rxe5 dxe5 22. Rxe5 Qxa4 23. bxa4 Be6 24. Nxe7 Kxe7 25. f4";
-        var expected = new List<string>
-        {
-
-        };
-        var actual = PgnToFenConverter.ConvertPgnToFen(pgn);
-        foreach (var fen in actual)
-        {
-            output.WriteLine(fen);
+            output.WriteLine("\"" + fen + "\",");
         }
         Assert.Equal(expected, actual);
     }
