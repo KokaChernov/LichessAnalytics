@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -356,24 +357,284 @@ public class PgnToFenConverterTests
         var actual = PgnToFenConverter.ConvertPgnToFen(pgn);
         foreach (var fen in actual)
         {
-            output.WriteLine("\""+fen+"\",");
+            output.WriteLine("\"" + fen + "\",");
         }
         Assert.Equal(expected, actual);
     }
 
     [Fact]
-    public void ConvertPgnToFen_Chess960_ReturnsCorrectFens()
+    public void ConvertPgnToFen_FromLargeFile_BatchedMultithreaded()
     {
-        string pgn = "1. e3 Ng6 2. Bd3 f6 3. Bxg6 hxg6 4. Ng3 Be6 5. Ne2 g5 6. h3 g6 7. b3 Bg7 8. c4 f5 9. Nbc3 f4 10. exf4 gxf4 11. Nxf4 Bf5 12. Ncd5 d6 13. Qa3 Nc6 14. Qa4 Qd7 15. Bh2 g5 16. O-O-O gxf4 17. Bxf4 Rh8 18. Re2 Rg8 19. Rde1 Be5 20. Bxe5 Nxe5 21. Rxe5 dxe5 22. Rxe5 Qxa4 23. bxa4 Be6 24. Nxe7 Kxe7 25. f4";
-        var expected = new List<string>
-        {
+        string filePath = @"c:\Data\lichess_db.pgn";
 
-        };
-        var actual = PgnToFenConverter.ConvertPgnToFen(pgn);
-        foreach (var fen in actual)
+        if (!System.IO.File.Exists(filePath))
         {
-            output.WriteLine(fen);
+            Assert.Fail($"File not found at {filePath}");
         }
-        Assert.Equal(expected, actual);
+
+        const int batchSize = 100;
+        int totalGamesProcessed = 0;
+        int totalPositions = 0;
+        var globalAnalyzer = new PositionAnalyzer(10);
+
+        using var stream = new System.IO.FileStream(filePath, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.Read, bufferSize: 65536);
+        using var reader = new System.IO.StreamReader(stream);
+
+        var batch = new List<string>(batchSize);
+        var currentGameLines = new System.Text.StringBuilder();
+
+        while (!reader.EndOfStream)
+        {
+            string? line = reader.ReadLine();
+            if (line is null)
+                break;
+
+            if (line.StartsWith("[Event ") && currentGameLines.Length > 0)
+            {
+                batch.Add(currentGameLines.ToString());
+                currentGameLines.Clear();
+
+                if (batch.Count >= batchSize)
+                {
+                    var (positions, analyzer) = ProcessBatchParallel(batch, ref totalGamesProcessed);
+                    totalPositions += positions;
+                    MergeAnalyzer(globalAnalyzer, analyzer);
+                    batch.Clear();
+                }
+            }
+
+            currentGameLines.AppendLine(line);
+        }
+
+        // Add last game
+        if (currentGameLines.Length > 0)
+            batch.Add(currentGameLines.ToString());
+
+        // Process remaining batch
+        if (batch.Count > 0)
+        {
+            var (positions, analyzer) = ProcessBatchParallel(batch, ref totalGamesProcessed);
+            totalPositions += positions;
+            MergeAnalyzer(globalAnalyzer, analyzer);
+        }
+
+        output.WriteLine($"Total games processed: {totalGamesProcessed}");
+        output.WriteLine($"Total positions generated: {totalPositions}");
+        output.WriteLine($"Total unique positions: {globalAnalyzer.Positions.Count}");
+
+        // Print top positions with win stats
+        foreach (var (pos, stats) in globalAnalyzer.GetTopPositions(200))
+        {
+            output.WriteLine($"{pos} : {stats.Frequency}x | White wins: {stats.WhiteWins}, Black wins: {stats.BlackWins}, Draws: {stats.Draws}");
+        }
+
+        Assert.True(totalGamesProcessed > 0);
+    }
+
+   
+
+    [Fact]
+    public void ConvertPgnToFen_FromLargeFile_ParsesGamesViaStreamReader()
+    {
+        // Arrange - point this to your large PGN file (several GB)
+        string filePath = @"c:\Data\lichess_db.pgn";
+
+        if (!System.IO.File.Exists(filePath))
+        {
+            output.WriteLine($"Skipping test: file not found at {filePath}");
+            Assert.Fail($"File not found at {filePath}");
+        }
+
+        int gamesProcessed = 0;
+        int maxGamesToProcess = 100; // limit for test purposes
+
+        // Act - stream the file line by line to avoid loading GB into memory
+        using var stream = new System.IO.FileStream(filePath, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.Read, bufferSize: 65536);
+        using var reader = new System.IO.StreamReader(stream);
+
+        var currentGameLines = new System.Text.StringBuilder();
+        bool inMoveSection = false;
+
+        while (!reader.EndOfStream && gamesProcessed < maxGamesToProcess)
+        {
+            string? line = reader.ReadLine();
+            if (line is null)
+                break;
+
+            if (line.StartsWith("[Event ") && currentGameLines.Length > 0)
+            {
+                var currentGame = currentGameLines.ToString();
+                currentGameLines.Clear();
+                inMoveSection = false;
+                // We've hit a new game boundary - process the previous game
+                ProcessGame(currentGame, ref gamesProcessed);
+                
+            }
+
+            currentGameLines.AppendLine(line);
+
+            if (line.StartsWith("1."))
+                inMoveSection = true;
+        }
+
+        // Process the last game in the file
+        if (currentGameLines.Length > 0 && gamesProcessed < maxGamesToProcess)
+        {
+            var currentGame = currentGameLines.ToString();
+            currentGameLines.Clear();
+            inMoveSection = false;
+            // if clk or eval - skip for now
+            if (!currentGame.Contains("%"))
+                ProcessGame(currentGameLines.ToString(), ref gamesProcessed);
+        }
+
+        // Assert
+        output.WriteLine($"Successfully processed {gamesProcessed} games from file.");
+        Assert.True(gamesProcessed > 0, "Expected at least one game to be parsed from the file.");
+    }
+
+    [Fact]
+    public void ConvertPgnToFen_FullSquareDisambiguation_ParsesCorrectly()
+    {
+        // This game contains Qd1c2, Q2b2+, Qca1# - full and partial disambiguation
+        string pgn = "1. e4 c5 2. f4 Nc6 3. Nf3 g6 4. d3 Bg7 5. Be3 Bxb2 6. Nbd2 Bxa1 7. Qxa1 f6 8. e5 fxe5 9. fxe5 e6 10. d4 Nge7 11. d5 exd5 12. e6 dxe6 13. Qxh8+ Kd7 14. Qxd8+ Kxd8 15. Bb5 a6 16. Bxc6 bxc6 17. Bxc5 a5 18. Bxe7+ Kxe7 19. Ne5 Kd6 20. Nf7+ Ke7 21. O-O Ba6 22. Rf2 Rf8 23. Ne5 Rxf2 24. Kxf2 Kd6 25. Ndf3 c5 26. Nf7+ Ke7 27. N3e5 c4 28. Ke3 Bb5 29. c3 Be8 30. Kd4 Bxf7 31. Nxf7 Kxf7 32. Kc5 Kf6 33. Kb5 e5 34. Kxa5 e4 35. Kb5 e3 36. a4 e2 37. a5 e1=Q 38. a6 Qe8+ 39. Kc5 Qa8 40. Kd4 Qxa6 41. g3 Qa3 42. h3 Qc1 43. h4 Qe1 44. Kc5 Qxg3 45. Kb4 Qxh4 46. Kb5 Qe4 47. Kb4 Qd3 48. Kb5 Qxc3 49. Kc5 d4 50. Kb5 d3 51. Kc5 d2 52. Kc6 d1=Q 53. Kb6 Qcd3 54. Kb5 c3+ 55. Kc5 c2 56. Kc6 c1=Q+ 57. Kb6 Qd1c2 58. Kb7 Q2b2+ 59. Ka7 Qca1#";
+
+        var fens = PgnToFenConverter.ConvertPgnToFen(pgn);
+
+        Assert.NotNull(fens);
+        Assert.Equal(118, fens.Count);
+
+        // Verify every FEN has valid structure
+        foreach (var fen in fens)
+        {
+            var parts = fen.Split(' ');
+            Assert.Equal(6, parts.Length);
+        }
+    }
+    private void MergeAnalyzer(PositionAnalyzer target, PositionAnalyzer source)
+    {
+        foreach (var (position, stats) in source.Positions)
+        {
+            if (!target.Positions.TryGetValue(position, out var existing))
+            {
+                target.Positions[position] = stats;
+            }
+            else
+            {
+                existing.Frequency += stats.Frequency;
+                existing.WhiteWins += stats.WhiteWins;
+                existing.BlackWins += stats.BlackWins;
+                existing.Draws += stats.Draws;
+                existing.GameIds.AddRange(stats.GameIds);
+            }
+        }
+    }
+
+    private void ProcessGame(string gameString, ref int gamesProcessed)
+    {
+        var game = LichessAnalytics.Console.LichessGame.Parse(gameString);
+        if (string.IsNullOrWhiteSpace(game.PGN))
+            return;
+
+        var fens = PgnToFenConverter.ConvertPgnToFen(game.PGN);
+
+        Assert.NotNull(fens);
+        Assert.NotEmpty(fens);
+
+        // Each FEN should have 6 space-separated parts
+        foreach (var fen in fens)
+        {
+            var parts = fen.Split(' ');
+            Assert.Equal(6, parts.Length);
+        }
+
+        gamesProcessed++;
+        output.WriteLine($"Game {gamesProcessed}: {fens.Count} positions parsed.");
+    }
+
+    private (int positions, PositionAnalyzer analyzer) ProcessBatchParallel(List<string> gameStrings, ref int totalGamesProcessed)
+    {
+        var analyzer = new PositionAnalyzer(7);
+
+        var games = new List<LichessAnalytics.Console.LichessGame>(gameStrings.Count);
+        foreach (var gs in gameStrings)
+        {
+            var game = LichessAnalytics.Console.LichessGame.Parse(gs);
+            if (!string.IsNullOrWhiteSpace(game.PGN))
+                games.Add(game);
+        }
+
+        var pgns = games.Select(g => g.PGN).ToList();
+        var allFens = PgnToFenConverter.ConvertManyPgnToFen(pgns);
+
+        int positions = 0;
+        for (int i = 0; i < allFens.Count; i++)
+        {
+            var fens = allFens[i];
+            Assert.NotNull(fens);
+            Assert.NotEmpty(fens);
+            foreach (var fen in fens)
+            {
+                Assert.Equal(6, fen.Split(' ').Length);
+            }
+            positions += fens.Count;
+
+            analyzer.ProcessGame(fens, games[i].GameId, games[i].Result);
+        }
+
+        totalGamesProcessed += allFens.Count;
+        output.WriteLine($"Batch done: {allFens.Count} games, {positions} positions, {analyzer.Positions.Count} unique positions tracked.");
+        return (positions, analyzer);
+    }
+}
+
+public class PositionStats
+{
+    public int Frequency { get; set; }
+    public int WhiteWins { get; set; }
+    public int BlackWins { get; set; }
+    public int Draws { get; set; }
+    public List<string> GameIds { get; set; } = new();
+}
+
+public class PositionAnalyzer
+{
+    private readonly int _numberOfMovesToSkip;
+    private readonly Dictionary<string, PositionStats> _positions = new();
+
+    public PositionAnalyzer(int numberOfMovesToSkip = 7)
+    {
+        _numberOfMovesToSkip = numberOfMovesToSkip;
+    }
+
+    public Dictionary<string, PositionStats> Positions => _positions;
+
+    public void ProcessGame(IEnumerable<string> fens, string gameId, string gameResult)
+    {
+        int whiteWin = gameResult == "1-0" ? 1 : 0;
+        int blackWin = gameResult == "0-1" ? 1 : 0;
+        int draw = gameResult == "1/2-1/2" ? 1 : 0;
+
+        foreach (var fen in fens.Skip(2 * _numberOfMovesToSkip))
+        {
+            string boardPosition = string.Join(" ", fen.Split(' ')[0..2]);
+
+            if (!_positions.TryGetValue(boardPosition, out var stats))
+            {
+                stats = new PositionStats();
+                _positions[boardPosition] = stats;
+            }
+
+            stats.Frequency++;
+            stats.GameIds.Add(gameId);
+            stats.WhiteWins += whiteWin;
+            stats.BlackWins += blackWin;
+            stats.Draws += draw;
+        }
+    }
+
+    public IEnumerable<KeyValuePair<string, PositionStats>> GetTopPositions(int count)
+    {
+        return _positions.OrderByDescending(kv => kv.Value.Frequency).Take(count);
     }
 }

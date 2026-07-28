@@ -1,18 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 public class PgnToFenConverter
 {
     public static List<string> ConvertPgnToFen(string pgn)
     {
+        pgn = CleanPgn(pgn);
         string patternFinalResult = @"\s*(1-0|0-1|1/2-1/2|\*)";
         pgn = Regex.Replace(pgn, patternFinalResult, string.Empty, RegexOptions.Multiline);
 
         var moves = Regex.Replace(pgn, @"\d+\.", "") // remove move numbers
                          .Trim()
                          .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-
+        
         var board = CreateInitialBoard();
         bool whiteToMove = true;
         string castlingRights = "KQkq";
@@ -24,6 +26,11 @@ public class PgnToFenConverter
 
         foreach (var move in moves)
         {
+            // if predefined position - skip the game
+            if( move == "..")
+            {
+                break;
+            }
             ApplyMove(board, move, ref whiteToMove, ref castlingRights, ref enPassant, ref halfmoveClock, ref fullmoveNumber);
             fens.Add(BoardToFEN(board, whiteToMove, castlingRights, enPassant, halfmoveClock, fullmoveNumber));
         }
@@ -57,7 +64,7 @@ public class PgnToFenConverter
         enPassant = "-"; // Reset en passant at the start of each move
 
         // Handle castling
-        if (move == "O-O" || move == "O-O+")
+        if (move == "O-O" || move == "O-O+" || move == "O-O#")
         {
             if (whiteToMove)
             {
@@ -79,7 +86,7 @@ public class PgnToFenConverter
             whiteToMove = !whiteToMove;
             return;
         }
-        else if (move == "O-O-O" || move == "O-O-O+")
+        else if (move == "O-O-O" || move == "O-O-O+" || move == "O-O-O#")
         {
             if (whiteToMove)
             {
@@ -127,13 +134,25 @@ public class PgnToFenConverter
             idx = 1;
         }
 
+
         // Disambiguation: look for from-file/from-rank
-        // e.g. Rda1, Kgf8, N1c3, etc.
-        if (cleanMove.Length - idx == 4) // e.g. Rda1, Kgf8
+        // e.g. Rda1, R1a1, Rd1a1 (full square)
+        if (cleanMove.Length - idx == 4) // full square disambiguation e.g. Qd1c2
         {
-            if (cleanMove[idx] >= 'a' && cleanMove[idx] <= 'h') fromFile = cleanMove[idx] - 'a';
-            if (cleanMove[idx] >= '1' && cleanMove[idx] <= '8') fromRank = 8 - (cleanMove[idx] - '0');
-            idx++;
+            if (cleanMove[idx] >= 'a' && cleanMove[idx] <= 'h' &&
+                cleanMove[idx + 1] >= '1' && cleanMove[idx + 1] <= '8')
+            {
+                fromFile = cleanMove[idx] - 'a';
+                fromRank = 8 - (cleanMove[idx + 1] - '0');
+                idx += 2;
+            }
+            else
+            {
+                // Single char disambiguation with longer move (shouldn't happen, but fallback)
+                if (cleanMove[idx] >= 'a' && cleanMove[idx] <= 'h') fromFile = cleanMove[idx] - 'a';
+                if (cleanMove[idx] >= '1' && cleanMove[idx] <= '8') fromRank = 8 - (cleanMove[idx] - '0');
+                idx++;
+            }
         }
         else if (cleanMove.Length - idx == 3) // e.g. N1c3, Rdf8
         {
@@ -390,6 +409,40 @@ public class PgnToFenConverter
         fen += " " + (whiteToMove ? "w" : "b") + " " + (string.IsNullOrEmpty(castlingRights) ? "-" : castlingRights) +
                " " + enPassant + " " + halfmoveClock + " " + fullmoveNumber;
         return fen;
+    }
+
+    public static string CleanPgn(string rawPgn)
+    {
+        // Remove curly-brace annotations: { [%clk 0:03:00] }, {book}, {white offers draw}, etc.
+        string cleaned = Regex.Replace(rawPgn, @"\{[^}]*\}", string.Empty);
+
+        // Remove continuation move numbers like "1..." or "12..."
+        cleaned = Regex.Replace(cleaned, @"\d+\.\.\.\s*", string.Empty);
+
+        // Remove annotation glyphs: !, ?, !!, ??, !?, ?!
+        cleaned = Regex.Replace(cleaned, @"[!?]+", string.Empty);
+
+        // Collapse multiple spaces into one
+        cleaned = Regex.Replace(cleaned, @"  +", " ").Trim();
+
+        return cleaned;
+    }
+
+    /// <summary>
+    /// Processes multiple PGN strings in parallel, returning results in the same order.
+    /// </summary>
+    public static List<List<string>> ConvertManyPgnToFen(IList<string> pgnGames, int maxDegreeOfParallelism = -1)
+    {
+        var results = new List<string>[pgnGames.Count];
+
+        Parallel.For(0, pgnGames.Count,
+            new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism },
+            i =>
+            {
+                results[i] = ConvertPgnToFen(pgnGames[i]);
+            });
+
+        return [.. results];
     }
   
 }

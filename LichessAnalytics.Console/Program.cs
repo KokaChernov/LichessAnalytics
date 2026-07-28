@@ -18,7 +18,7 @@ class Program
     
     readonly static int numberOfTopPositionsToPresent = 20;
     
-    readonly static string playerName = "kokachernov";
+    private static string playerName = "sometimesok";
 
     static void Main()
     {
@@ -33,6 +33,28 @@ class Program
         //var utcDateTime = new DateTime(ticks, DateTimeKind.Utc);
         var millisecondsSinceEpoch = new DateTimeOffset(DateTime.UtcNow, TimeSpan.Zero).ToUnixTimeMilliseconds();
         //var millisecondsSinceEpoch = 1738372104000;
+
+        Console.WriteLine($"Enter player name, current player name is {playerName}");
+        // console read into the player name variable, if empty use the default player name
+
+
+        var inputPlayerName = Console.ReadLine();
+
+        if (!string.IsNullOrEmpty(inputPlayerName))
+        {
+            // check lichess api for the player name validity by trying to fetch one game, if the response is successful, use the new player name, otherwise keep the default one
+            var isValidPlayer = GetLichessPlayerAsync(inputPlayerName).GetAwaiter().GetResult();
+
+            if (isValidPlayer)
+            {
+                playerName = inputPlayerName;
+            }
+            else
+            {
+                Console.WriteLine($"Player '{inputPlayerName}' not found. Using default player '{playerName}'.");
+            }
+        }
+
 
         for (int i = 0; i < numberOfIterantions; i++)
         {
@@ -53,46 +75,23 @@ class Program
             var cutoffTime = parsedGames[parsedGames.Count - 1].UTCTime;
             millisecondsSinceEpoch = new DateTimeOffset(cutoffDate.Add(TimeSpan.Parse(cutoffTime)), TimeSpan.Zero).ToUnixTimeMilliseconds();
 
-            //Console.WriteLine(lichessGamesString);
-            // Record the last game's date and time to use it as the 'until' parameter in the next API call
-            // string pattern = @"\[UTCDate\s+""(?<date>[\d\.]+)""\]\s+\[UTCTime\s+""(?<time>[\d:]+)""\]";
-            // var datetimematches = Regex.Matches(lichessGamesString, pattern);
-            // if (datetimematches.Count > 0)
-            // {
-            //     var datetimematch = datetimematches[datetimematches.Count - 1];
-            //     string dateStr = datetimematch.Groups["date"].Value; // "2025.08.18"
-            //     string timeStr = datetimematch.Groups["time"].Value; // "16:36:44"
-
-            //     Console.WriteLine($"Date: {dateStr}");
-            //     Console.WriteLine($"Time: {timeStr}");
-
-            //     if (DateTime.TryParseExact(
-            //             dateStr + " " + timeStr,
-            //             "yyyy.MM.dd HH:mm:ss",
-            //             null,
-            //             System.Globalization.DateTimeStyles.AdjustToUniversal,
-            //             out DateTime dt))
-            //     {
-            //         Console.WriteLine($"Parsed DateTime (UTC): {dt.AddYears(-1).Ticks}");
-            //     }
-            //     else
-            //     {
-            //         break;
-            //     }
-            //     millisecondsSinceEpoch = new DateTimeOffset(dt, TimeSpan.Zero).ToUnixTimeMilliseconds();
-            // }
-
             foreach (var game in parsedGames)
             {
-                var resultForThePlayer = game.White.ToLower() == playerName.ToLower() ? game.WhiteRatingDiff : game.BlackRatingDiff;
+                
 
+                if (game.PGN == null) // if game was Abandoned
+                {
+                    continue;
+                }
+
+                var resultForThePlayer = game.White.ToLower() == playerName.ToLower() ? game.WhiteRatingDiff : game.BlackRatingDiff;
 
                 // leave only the positions after the first N full moves of each game (to exclude the opening theory)
                 var fens = PgnToFenConverter.ConvertPgnToFen(game.PGN).Skip(2 * numberOfMovesToSkip);
 
                 foreach (var fen in fens)
                 {
-                    string boardPosition = fen.Split(' ')[0];// leave only the board position out of the FEN (e.g. "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" - take only the piece placement part)
+                    string boardPosition = string.Join(" ", fen.Split(' ')[0..2]);// leave only the board position out of the FEN (e.g. "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" - take only the piece placement part + next move color)
                     //Console.WriteLine(boardPosition);
                     frequentPositions[boardPosition] = frequentPositions.GetValueOrDefault(boardPosition, 0) + 1;
                     if (!postitionsToGameReference.ContainsKey(boardPosition))
@@ -119,7 +118,32 @@ class Program
             Console.WriteLine();
         }
     }
-    
+
+    static async Task<bool> GetLichessPlayerAsync(string playerName)
+    {
+        using (var client = new HttpClient())
+        {
+            // var token = Environment.GetEnvironmentVariable("LICHESS_API_TOKEN");
+            // if (string.IsNullOrEmpty(token))
+            // {
+            //     throw new InvalidOperationException("LICHESS_API_TOKEN environment variable is not set");
+            // }
+            // client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+            //need to escape the player name in case it contains special characters
+            playerName = Uri.EscapeDataString(playerName);
+            var url = $"https://lichess.org/api/user/{playerName}";
+            var response = await client.GetAsync(url);
+            if (!response.IsSuccessStatusCode)
+            {
+                if (response.StatusCode == System.Net.HttpStatusCode.NotFound) // Too Many Requests
+                {
+                    return false;
+                }
+            }
+           
+            return true;
+        }
+    }
 
     static async Task<string> GetLichessGamesAsync(long millisecondsSinceEpoch, int numberOfGamesToFetch = 100)
     {

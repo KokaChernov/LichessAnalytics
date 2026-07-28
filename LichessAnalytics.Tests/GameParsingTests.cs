@@ -60,7 +60,7 @@ public class LichessGameTests
         Assert.Equal("1. b3 e6 2. Bb2 d6 3. e3 c6 4. a3 f6 5. d4 g6 6. Nf3 Nh6 7. Be2 Nf7 8. c4 Bg7 9. b4 O-O 10. Nc3 Na6 11. O-O Nc7 12. a4 b6 13. b5 Bb7 14. bxc6 Bxc6 15. Na2 Qd7 16. Nb4 Bb7 17. Nd3 d5 18. cxd5 Bxd5 19. Nb4 Bb7 20. Rc1 Rac8 21. Qd2 Nd6 22. Rc2 Ne4 23. Qd3 Na8 24. Rfc1 Rxc2 25. Rxc2 Rc8 26. Rxc8+ Qxc8 27. h3 Qd7 28. Na6 Qxa4 29. Bc1 Qa1 30. Qd2 Bxa6 31. Qc2 Bxe2 32. Qxe2 Qxc1+ 33. Kh2 Nc3 34. Qd3 Nc7 35. Nd2 f5 36. Nc4 N7d5 37. Ne5 Bxe5+ 38. dxe5 Ne4 39. Qe2 Qc7 40. f3 Qxe5+ 41. f4 Qc7 42. g3 Qc3 43. Qa2 Qxe3 44. Qxa7 Qxg3+ 45. Kh1 Nf2# 0-1", game.PGN);
     }
 
-        [Fact]
+    [Fact]
     public void Cut_10ValidLichessGames_Into_ArrayOfObjects()
     {
         // Arrange
@@ -284,7 +284,7 @@ public class LichessGameTests
         Assert.Equal("60+0", game.TimeControl);
         Assert.Equal("A01", game.ECO);
         Assert.Equal("Normal", game.Termination);
-       
+
         Assert.Equal("1. b3 g6 2. Bb2 Nf6 3. e3 Bg7 4. d4 O-O 5. a3 d5 6. c4 c6 7. c5 Nbd7 8. b4 Re8 9. Nf3 Qc7 10. Be2 e5 11. O-O e4 12. Nfd2 Nf8 13. Nc3 Ne6 14. b5 Nd7 15. bxc6 bxc6 16. a4 Rb8 17. Rb1 Rf8 18. a5 Qxa5 19. Qc2 f5 20. Nd1 f4 21. Bc3 Qc7 22. Rxb8 Qxb8 23. exf4 Nxf4 24. Nb1 Nxe2+ 25. Qxe2 Qxb1 26. Ne3 Qd3 27. Re1 Qxc3 28. g3 Bxd4 29. Kg2 Bxc5 30. Ng4 Nf6 31. Ne5 Qxe5 32. Qa2 Ng4 33. h3 Rxf2+ 34. Qxf2 Nxf2 35. Rf1 Nd3 36. h4 Qe6 37. h5 Qh3# 0-1", game.PGN);
     }
 
