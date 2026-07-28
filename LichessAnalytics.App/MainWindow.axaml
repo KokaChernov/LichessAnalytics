@@ -1,0 +1,19 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LichessAnalytics.App.MainWindow"
+        Title="Lichess Analytics"
+        Width="800" Height="500">
+    <DockPanel Margin="16">
+       
+        <TextBlock DockPanel.Dock="Top" Text="Lichess Analytics" FontSize="24" FontWeight="Bold" Margin="0,0,0,12"/>
+
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+            <Button DockPanel.Dock="Right" Content="Convert" Click="OnConvertClick" Margin="8,0,0,0" VerticalAlignment="Center"/>
+            <TextBox x:Name="PgnInput" Watermark="Paste PGN here, e.g. 1. e4 e5 2. Nf3 Nc6 ..."/>
+        </DockPanel>
+
+        <TextBox x:Name="FenOutput" IsReadOnly="True" AcceptsReturn="True"
+                 TextWrapping="Wrap" FontFamily="Consolas,monospace"
+                 Watermark="FEN output will appear here"/>
+    </DockPanel>
+</Window>
